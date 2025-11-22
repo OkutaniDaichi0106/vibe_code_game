@@ -11,4 +11,6 @@ server_dir = os.path.join(project_root, 'server')
 
 # server.pyを実行（カレントディレクトリはプロジェクトルート）
 if __name__ == "__main__":
-    subprocess.run([sys.executable, os.path.join(server_dir, 'server.py')], cwd=project_root)
+    # 引数をそのまま渡す
+    cmd = [sys.executable, os.path.join(server_dir, 'server.py')] + sys.argv[1:]
+    subprocess.run(cmd, cwd=project_root)

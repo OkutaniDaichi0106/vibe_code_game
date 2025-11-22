@@ -50,7 +50,7 @@ def on_init(state, api):
             "speed": 2,            # 敵の移動速度
             "width": 40,           # 敵の幅
             "height": 40,          # 敵の高さ
-            "scale": 1,            # 表示スケール
+            "scale": 2,            # 表示スケール (デフォルトから2倍)
             "use_gravity": True,  # 重力を使うか（False = 空中に浮く）
             "y_offset": 127        # 地面からの高さ
             },
@@ -61,7 +61,7 @@ def on_init(state, api):
             "speed": 1.5,
             "width": 40,
             "height": 40,
-            "scale": 1,
+            "scale": 2,            # 表示スケール (デフォルトから2倍)
             "use_gravity": False
             # y_offset がない場合は 0（地面上）
             },
@@ -72,7 +72,7 @@ def on_init(state, api):
             "speed": 2,
             "width": 40,
             "height": 40,
-            "scale": 1,
+            "scale": 2,            # 表示スケール (デフォルトから2倍)
             "use_gravity": False,
             "y_offset": 112
             }
@@ -126,5 +126,3 @@ def on_tick(state, api):
     # api.platform_oscillate(memory, platform_indices=[0, 1], speeds=[(0, -1), (0, 1)], move_range=80)
 
     pass
-
-    

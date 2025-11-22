@@ -11,10 +11,22 @@ import os
 import re
 import json
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 
 load_dotenv()
 app = FastAPI()
+
+# APIプロバイダーの設定
+api_provider = None
+if os.getenv("OPENAI_API_KEY"):
+    api_provider = "openai"
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+elif os.getenv("GEMINI_API_KEY"):
+    api_provider = "gemini"
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+else:
+    print("警告: OPENAI_API_KEY または GEMINI_API_KEY 環境変数が設定されていません")
 
 # CORS設定を追加（ngrokなど外部からのアクセスに対応）
 app.add_middleware(
@@ -277,25 +289,26 @@ async def update_script(body: PromptBody):
             system_prompt += f"\n\n## ユーザーからの要望\n\n{body.prompt}"
             print("=== プロンプト挿入成功（末尾追加方式） ===")
 
-        # 2. OpenAI API呼び出し（ChatGPT からコード生成）
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        
-        print(f"=== OpenAI APIリクエスト送信 ===")
-        print(f"User prompt: {body.prompt}")
-        
-        resp = openai.chat.completions.create(
-            model="gpt-5.1",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": body.prompt},
-            ],
-        )
-        print(f"=== OpenAI APIレスポンス受信 ===")
-        print(resp)
-
-        import json
-
-        response_content = resp.choices[0].message.content
+        # 2. AI API呼び出し（コード生成）
+        if api_provider == "openai":
+            resp = openai.chat.completions.create(
+                model="gpt-5.1",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": body.prompt},
+                ],
+            )
+            response_content = resp.choices[0].message.content
+        elif api_provider == "gemini":
+            # モデル名を修正: 無料枠で使えるFlashモデルを指定
+            model = genai.GenerativeModel("models/gemini-flash-latest")
+            resp = model.generate_content(system_prompt + "\n\n" + body.prompt)
+            response_content = resp.text
+        else:
+            return {
+                "status": "error",
+                "error": "API key not set"
+            }
         
         # デバッグ: レスポンス全体をログに出力
         print(f"=== Full Response Content (length: {len(response_content)}) ===")
@@ -391,49 +404,90 @@ async def update_script_stream(body: PromptBody):
             comment_extracted = False
             buffer = ""  # チャンクをまとめるバッファ
             try:
-                print("=== OpenAI API (stream) リクエスト送信 ===")
-                stream = openai.chat.completions.create(
-                    model="gpt-5.1",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": body.prompt},
-                    ],
-                    stream=True,  # ストリーミング有効化
-                )
-                for chunk in stream:
-                    delta = chunk.choices[0].delta
-                    content = getattr(delta, "content", None) or ""
-                    if not content:
-                        continue
-                    
-                    buffer += content
-                    full_text += content
-                    
-                    # バッファが一定サイズになったら、または特定のトークンが現れたら送信
-                    should_yield = (
-                        len(buffer) >= 50 or  # 50文字以上溜まったら
-                        COMMENT_END_TOKEN in buffer or  # コメント終了トークンが出現したら
-                        CODE_START_TOKEN in buffer  # コード開始トークンが出現したら
+                print("=== AI API (stream) リクエスト送信 ===")
+                if api_provider == "openai":
+                    stream = openai.chat.completions.create(
+                        model="gpt-5.1",
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": body.prompt},
+                        ],
+                        stream=True,  # ストリーミング有効化
                     )
-                    
-                    if should_yield:
-                        print(f"=== Yielding buffer ({len(buffer)} chars): {buffer[:100]}... ===")
-                        yield buffer
-                        buffer = ""  # バッファをクリア
-                    
-                    # コメント部分が完成したらログに出力(デバッグ用)
-                    if not comment_extracted and COMMENT_END_TOKEN in full_text:
-                        comment = extract_comment_block(full_text)
-                        if comment:
-                            print(f"=== Comment extracted early: {comment[:100]}... ===")
-                            comment_extracted = True
-                            # ゲームUIに「コード生成中」を表示するためのフラグファイル作成
-                            try:
-                                with open("status_generating.flag", "w", encoding="utf-8") as f:
-                                    f.write("コード生成中...")
-                                print("=== status_generating.flag created ===")
-                            except Exception as e:
-                                print(f"Failed to create status flag: {e}")
+                    for chunk in stream:
+                        delta = chunk.choices[0].delta
+                        content = getattr(delta, "content", None) or ""
+                        if not content:
+                            continue
+                        
+                        buffer += content
+                        full_text += content
+                        
+                        # バッファが一定サイズになったら、または特定のトークンが現れたら送信
+                        should_yield = (
+                            len(buffer) >= 50 or  # 50文字以上溜まったら
+                            COMMENT_END_TOKEN in buffer or  # コメント終了トークンが出現したら
+                            CODE_START_TOKEN in buffer  # コード開始トークンが出現したら
+                        )
+                        
+                        if should_yield:
+                            print(f"=== Yielding buffer ({len(buffer)} chars): {buffer[:100]}... ===")
+                            yield buffer
+                            buffer = ""  # バッファをクリア
+                        
+                        # コメント部分が完成したらログに出力(デバッグ用)
+                        if not comment_extracted and COMMENT_END_TOKEN in full_text:
+                            comment = extract_comment_block(full_text)
+                            if comment:
+                                print(f"=== Comment extracted early: {comment[:100]}... ===")
+                                comment_extracted = True
+                                # ゲームUIに「コード生成中」を表示するためのフラグファイル作成
+                                try:
+                                    with open("status_generating.flag", "w", encoding="utf-8") as f:
+                                        f.write("コード生成中...")
+                                    print("=== status_generating.flag created ===")
+                                except Exception as e:
+                                    print(f"Failed to create status flag: {e}")
+                elif api_provider == "gemini":
+                    # モデル名を修正: 無料枠で使えるFlashモデルを指定
+                    model = genai.GenerativeModel("models/gemini-flash-latest")
+                    response = model.generate_content(system_prompt + "\n\n" + body.prompt, stream=True)
+                    for chunk in response:
+                        content = chunk.text
+                        if not content:
+                            continue
+                        
+                        buffer += content
+                        full_text += content
+                        
+                        # バッファが一定サイズになったら、または特定のトークンが現れたら送信
+                        should_yield = (
+                            len(buffer) >= 50 or  # 50文字以上溜まったら
+                            COMMENT_END_TOKEN in buffer or  # コメント終了トークンが出現したら
+                            CODE_START_TOKEN in buffer  # コード開始トークンが出現したら
+                        )
+                        
+                        if should_yield:
+                            print(f"=== Yielding buffer ({len(buffer)} chars): {buffer[:100]}... ===")
+                            yield buffer
+                            buffer = ""  # バッファをクリア
+                        
+                        # コメント部分が完成したらログに出力(デバッグ用)
+                        if not comment_extracted and COMMENT_END_TOKEN in full_text:
+                            comment = extract_comment_block(full_text)
+                            if comment:
+                                print(f"=== Comment extracted early: {comment[:100]}... ===")
+                                comment_extracted = True
+                                # ゲームUIに「コード生成中」を表示するためのフラグファイル作成
+                                try:
+                                    with open("status_generating.flag", "w", encoding="utf-8") as f:
+                                        f.write("コード生成中...")
+                                    print("=== status_generating.flag created ===")
+                                except Exception as e:
+                                    print(f"Failed to create status flag: {e}")
+                else:
+                    yield "[SERVER ERROR] API key not set"
+                    return
 
                 # 残りのバッファを送信
                 if buffer:
@@ -549,44 +603,50 @@ class StatusBody(BaseModel):
 @app.post("/set_status")
 async def set_status(body: StatusBody):
     """
-    ゲームの右上にテキストを表示する
+    ゲームの右上にテキストを表示する（ファイル経由）
     """
     try:
-        import socket
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect(("localhost", 50000))
-            command = {
-                "action": "display_text",
-                "text": body.text,
-                "duration": body.duration
-            }
-            s.sendall(json.dumps(command).encode('utf-8'))
+        # ソケット通信ではなく、フラグファイル経由で通知する
+        # main.py が status_custom.flag を監視するように修正が必要
+        with open("status_custom.flag", "w", encoding="utf-8") as f:
+            f.write(body.text)
         return {"status": "ok", "text": body.text}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 
+import argparse
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Game Server")
+    parser.add_argument("--port", type=int, default=8001, help="Port number (default: 8001)")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address (default: 0.0.0.0)")
+    parser.add_argument("--no-ngrok", action="store_true", help="Disable ngrok")
+    args = parser.parse_args()
+
     # 環境変数チェック
-    if not os.getenv("OPENAI_API_KEY"):
-        print("警告: OPENAI_API_KEY 環境変数が設定されていません")
-        print("環境変数を設定するか、コード内で直接 openai.api_key を設定してください")
+    if not os.getenv("OPENAI_API_KEY") and not os.getenv("GEMINI_API_KEY"):
+        print("警告: OPENAI_API_KEY または GEMINI_API_KEY 環境変数が設定されていません")
+        print("環境変数を設定してください")
     
     # ngrok を使用してトンネルを作成
-    try:
-        from pyngrok import ngrok
-        
-        # ngrok トンネルを開く
-        public_url = ngrok.connect(8001, bind_tls=True)
-        print(f"\n{'='*60}")
-        print(f"✓ ngrok トンネル作成完了")
-        print(f"{'='*60}")
-        print(f"公開 URL: {public_url}")
-        print(f"ローカルサーバー: http://localhost:8000")
-        print(f"{'='*60}\n")
-        
-    except Exception as e:
-        print(f"⚠ ngrok の初期化に失敗しました: {e}")
-        print("ngrok なしでサーバーを起動します\n")
+    if not args.no_ngrok:
+        try:
+            from pyngrok import ngrok
+            
+            # ngrok トンネルを開く
+            public_url = ngrok.connect(args.port, bind_tls=True)
+            print(f"\n{'='*60}")
+            print(f"✓ ngrok トンネル作成完了")
+            print(f"{'='*60}")
+            print(f"公開 URL: {public_url}")
+            print(f"ローカルサーバー: http://localhost:{args.port}")
+            print(f"{'='*60}\n")
+            
+        except Exception as e:
+            print(f"⚠ ngrok の初期化に失敗しました: {e}")
+            print("ngrok なしでサーバーを起動します\n")
+    else:
+        print("ngrok は無効化されています")
     
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host=args.host, port=args.port)

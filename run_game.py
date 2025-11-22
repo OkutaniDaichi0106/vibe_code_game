@@ -12,4 +12,7 @@ os.chdir(project_root)
 sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # main.pyを実行
-from main import *
+if __name__ == "__main__":
+    import subprocess
+    cmd = [sys.executable, os.path.join(project_root, 'src', 'main.py')] + sys.argv[1:]
+    subprocess.run(cmd, cwd=project_root)

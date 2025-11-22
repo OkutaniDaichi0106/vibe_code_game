@@ -6,6 +6,7 @@ import socket
 import subprocess
 import os
 import time
+import argparse
 # import script_user  # TCP版では不要
 # from api import GameAPI  # TCP版では不要
 from player import Player
@@ -17,6 +18,20 @@ from level import load_level, is_on_ground
 # =========================
 with open('config/config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
+
+# コマンドライン引数で設定を上書き
+parser = argparse.ArgumentParser(description="Vibe Code Game")
+parser.add_argument("--width", type=int, help="Screen width")
+parser.add_argument("--height", type=int, help="Screen height")
+parser.add_argument("--fps", type=int, help="FPS")
+args = parser.parse_args()
+
+if args.width:
+    config['screen']['width'] = args.width
+if args.height:
+    config['screen']['height'] = args.height
+if args.fps:
+    config['screen']['fps'] = args.fps
 
 # 設定値を変数に展開
 SCREEN_WIDTH = config['screen']['width']
@@ -631,6 +646,18 @@ while running:
                     ai_status_text = f.read().strip()
                     ai_status_timer = 1800  # 30秒の上限（60fps想定）
                     prompt_flag_shown = False  # プロンプトはまだ表示されていない
+            except:
+                pass
+        elif os.path.exists("status_custom.flag"):
+            # カスタムステータス（/set_status API経由）
+            try:
+                with open("status_custom.flag", "r", encoding="utf-8") as f:
+                    text = f.read().strip()
+                    # display_text（右上）として表示
+                    display_text = text
+                    display_text_timer = 180  # 3秒
+                    display_text_color = (0, 0, 0)
+                os.remove("status_custom.flag")
             except:
                 pass
         elif os.path.exists("status_prompt.flag") and not prompt_flag_shown:

@@ -4,13 +4,17 @@ import pygame
 class Enemy:
     _next_id = 0
 
-    def __init__(self, world_x, y, move_range=100, speed=2, width=40, height=40, scale=1.0, use_gravity=True):
+    def __init__(self, world_x, y, move_range=100, speed=2, width=40, height=40, scale=1.0, use_gravity=True,
+                 stomp_kills_enemy=True, touch_kills_player=True, bounce_on_stomp=True):
         """
         world_x: 世界座標でのx
         y      : 画面上でのy（地面にいる感じ）
         move_range: 中心から左右にどれくらい動くか
         speed  : 左右の移動速度
         use_gravity: 重力を適用するかどうか
+        stomp_kills_enemy: 踏むと敵を倒すか
+        touch_kills_player: 触れるとプレイヤーが死ぬか
+        bounce_on_stomp: 踏んだ時にバウンスするか
         """
         self.id = Enemy._next_id
         Enemy._next_id += 1
@@ -30,6 +34,11 @@ class Enemy:
         self.vx = 0  # x方向の速度（API制御用）
         self.vy = 0  # y方向の速度
         self.use_api_control = False  # APIからの制御を使うかどうか
+        
+        # 衝突判定設定
+        self.stomp_kills_enemy = stomp_kills_enemy
+        self.touch_kills_player = touch_kills_player
+        self.bounce_on_stomp = bounce_on_stomp
         
         # Load images
         self.images = []

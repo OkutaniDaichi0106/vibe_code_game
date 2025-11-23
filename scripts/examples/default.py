@@ -13,6 +13,12 @@ def on_init(state, api):
     api.update_config({
         
         # ---------- プレイヤー設定 ----------
+        """
+        前提条件
+        デフォルトのプレイヤーの幅は 40 ピクセル、高さは 60 ピクセル、座標の基準点は中心（x軸）と足元（y軸）である。
+        デフォルトの小ジャンプの高さが100ピクセル、大ジャンプの高さが150ピクセルである。
+
+"""
         "player": {
             "x": 200,          # プレイヤーの初期位置（画面左端からの距離）
             "scale": 1,
@@ -42,6 +48,11 @@ def on_init(state, api):
         },
         
         # ---------- 敵設定 ----------
+        """
+        前提条件
+        デフォルトの敵の幅は 40 ピクセル、高さは 40 ピクセル、座標の基準点は中心（x軸）と足元（y軸）である。
+
+"""       
         "enemies": [
             # 敵 1: 高い位置にいる敵
             {
@@ -52,7 +63,10 @@ def on_init(state, api):
             "height": 40,          # 敵の高さ
             "scale": 1,            # 表示スケール
             "use_gravity": True,  # 重力を使うか（False = 空中に浮く）
-            "y_offset": 127        # 地面からの高さ
+            "y_offset": 127,       # 地面からの高さ
+            "stomp_kills_enemy": True,    # 踏むと敵を倒すか
+            "touch_kills_player": True,   # 触れるとプレイヤーが死ぬか
+            "bounce_on_stomp": True       # 踏んだ時にバウンスするか
             },
             # 敵 2: 中間の高さにいる敵
             {
@@ -62,8 +76,11 @@ def on_init(state, api):
             "width": 40,
             "height": 40,
             "scale": 1,
-            "use_gravity": False
+            "use_gravity": False,
             # y_offset がない場合は 0（地面上）
+            "stomp_kills_enemy": True,
+            "touch_kills_player": True,
+            "bounce_on_stomp": True
             },
             # 敵 3: 低い位置にいる敵
             {
@@ -74,7 +91,10 @@ def on_init(state, api):
             "height": 40,
             "scale": 1,
             "use_gravity": False,
-            "y_offset": 112
+            "y_offset": 112,
+            "stomp_kills_enemy": True,
+            "touch_kills_player": True,
+            "bounce_on_stomp": True
             }
         ],
         

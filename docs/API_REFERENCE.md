@@ -72,13 +72,23 @@
 
 ## 敵制御
 
-### `api.spawn_enemy(x, y, use_gravity=True, speed=2.0, scale=1.0)`
+### `api.spawn_enemy(x, y, use_gravity=True, speed=2.0, scale=1.0, stomp_kills_enemy=True, touch_kills_player=True, bounce_on_stomp=True)`
 
-通常敵を生成（最大 300 体）。`scale` でサイズ倍率を指定（0.25〜4.0）。
+通常敵を生成（最大 30 体）。`scale` でサイズ倍率を指定（0.25～4.0）。
 
-### `api.spawn_snake(x, y, width=60, height=20, speed=3, move_range=150, scale=1.0)`
+**衝突判定パラメータ:**
+- `stomp_kills_enemy`: 踏むと敵を倒すか（デフォルト: True）
+- `touch_kills_player`: 触れるとプレイヤーが死ぬか（デフォルト: True）
+- `bounce_on_stomp`: 踏んだ時にバウンスするか（デフォルト: True）
 
-重力無しの往復移動蛇型敵。`scale` でサイズ倍率を指定（0.25〜4.0）。
+### `api.spawn_snake(x, y, width=60, height=20, speed=3, move_range=150, scale=1.0, stomp_kills_enemy=True, touch_kills_player=True, bounce_on_stomp=True)`
+
+重力無しの往復移動蛇型敵。`scale` でサイズ倍率を指定（0.25～4.0）。
+
+**衝突判定パラメータ:**
+- `stomp_kills_enemy`: 踏むと敵を倒すか（デフォルト: True）
+- `touch_kills_player`: 触れるとプレイヤーが死ぬか（デフォルト: True）
+- `bounce_on_stomp`: 踏んだ時にバウンスするか（デフォルト: True）
 
 ### `api.set_enemy_vel(enemy_id, vx=None, vy=None)`
 
@@ -94,7 +104,25 @@
 
 ### `api.set_enemy_scale(enemy_id, scale)`
 
-指定した敵（または `enemy_id="all"` で全員）の倍率を変更。範囲は 0.25〜4.0。足元を基準に拡縮し、当たり判定とスプライトを一括で更新します。
+指定した敵（または `enemy_id="all"` で全員）の倍率を変更。範囲は 0.25～4.0。足元を基準に拡縮し、当たり判定とスプライトを一括で更新します。
+
+### `api.set_enemy_collision(stomp_kills_enemy=None, touch_kills_player=None, bounce_on_stomp=None)`
+
+全敵の衝突判定設定を変更（グローバル設定）。各パラメータは省略可能。
+
+**例:**
+```python
+# 敵を踏んでも倒せないようにする
+api.set_enemy_collision(stomp_kills_enemy=False)
+
+# 敵に触れても死なないようにする
+api.set_enemy_collision(touch_kills_player=False)
+
+# バウンスを無効にする
+api.set_enemy_collision(bounce_on_stomp=False)
+```
+
+**注意:** 各敵は `config.json` または `spawn_enemy`/`spawn_snake` のパラメータで個別に設定できます。このメソッドは既存の敵の設定を変更しません。
 
 ---
 
@@ -144,9 +172,13 @@
 
 背景色を即時変更。
 
-### `api.show_text(text, duration=3.0, color=(255,255,255))`
+### `api.display_text(text, duration=3.0, color=(255,255,255))`
 
 右上にメッセージ表示（再呼び出しで上書き）。
+
+### `api.show_text(text, duration=3.0, color=(255,255,255))`
+
+`display_text` のエイリアス（後方互換性のため残されています）。
 
 ---
 
@@ -184,7 +216,7 @@
 1. 入力操作による横加速は常に `physics.max_speed` 制限。`set_player_vel(limit=False)` は無制限。
 2. 垂直速度は内部的に ±60 へクランプし物理暴走を防止。
 3. 敵速度は合成 15.0 超過で正規化し不自然な瞬間移動を抑制。
-4. 敵総数 300 超過の `spawn_enemy` / `spawn_snake` は無視。
+4. 敵総数 30 超過の `spawn_enemy` / `spawn_snake` は無視。
 5. `set_player_pos(x)` はカメラを滑らか追従させるため一瞬でジャンプしない。
 6. 大き過ぎる `vx` を頻繁に与えると背景スクロールが粗く見える場合あり（演出目的で許容）。
 7. `update_config` は構造丸ごと差し替えではなくキー更新用途推奨。
@@ -213,7 +245,13 @@ api.platform_oscillate(memory, platform_indices=[0,1], speeds=[(0,-1),(0,1)], mo
 api.set_player_scale(1.8)
 
 # メッセージ表示
-api.show_text("Start!", duration=2.0)
+api.display_text("Start!", duration=2.0)
+
+# 衝突判定設定を持つ敵を生成
+api.spawn_enemy(x=1000, y=400, stomp_kills_enemy=False, touch_kills_player=False)
+
+# 全敵の衝突判定を変更
+api.set_enemy_collision(touch_kills_player=False)
 ```
 
 ---

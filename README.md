@@ -4,14 +4,13 @@
 
 ## プロジェクト構造
 
-```
+```text
 vibe_code_game/
 ├── src/                          # ゲームのコアコード
 │   ├── main.py                   # メインゲームループ
 │   ├── player.py                 # プレイヤークラス
 │   ├── enemy.py                  # 敵クラス
-│   ├── level.py                  # レベル管理
-│   └── api.py                    # ゲームAPI
+│   └── level.py                  # レベル管理
 │
 ├── scripts/                      # ユーザースクリプト
 │   ├── script_user.py           # 実際に使用されるスクリプト
@@ -27,22 +26,24 @@ vibe_code_game/
 │   └── config.json              # ゲーム設定
 │
 ├── assets/                       # ゲームアセット
-│   └── background.png           # 背景画像
+│   ├── enemy/                    # 敵アセット
+│   ├── goal/                     # ゴールアセット
+│   └── player/                   # プレイヤーアセット
 │
 ├── docs/                         # ドキュメント
-│   ├── API_REFERENCE.md         # API リファレンス
-│   ├── SERVER_SETUP.md          # サーバー設定手順
-│   └── AI_PROMPT.md             # AI用プロンプト
+│   ├── AI_PROMPT.md              # AI用プロンプト
+│   ├── API_REFERENCE.md          # API リファレンス
+│   └── SERVER_SETUP.md           # サーバー設定手順
 │
+├── level_editor.py               # レベルエディタ
 ├── run_game.py                  # ゲーム起動スクリプト
 ├── run_server.py                # サーバー起動スクリプト
-├── .gitignore
-└── .env
+└── README.md                     # このファイル
 ```
 
 ## セットアップ
 
-### 1. 依存関係のインストール
+### 依存関係のインストール
 
 ```powershell
 # ゲーム用
@@ -52,7 +53,7 @@ pip install pygame
 pip install -r server/requirements_server.txt
 ```
 
-### 2. 環境変数の設定
+### 環境変数の設定
 
 `.env`ファイルにOpenAI APIキーを設定（サーバー機能を使う場合）:
 

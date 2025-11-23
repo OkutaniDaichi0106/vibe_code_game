@@ -57,7 +57,10 @@
       "height": 40,
       "scale": 1.0,
       "use_gravity": true,
-      "y_offset": 127
+      "y_offset": 127,
+      "stomp_kills_enemy": true,
+      "touch_kills_player": true,
+      "bounce_on_stomp": true
     },
     {
       "world_x": 1065,
@@ -66,7 +69,10 @@
       "width": 40,
       "height": 40,
       "scale": 1.0,
-      "use_gravity": true
+      "use_gravity": true,
+      "stomp_kills_enemy": true,
+      "touch_kills_player": true,
+      "bounce_on_stomp": true
     },
     {
       "world_x": 1941,
@@ -76,7 +82,10 @@
       "height": 40,
       "scale": 1.0,
       "use_gravity": false,
-      "y_offset": 112
+      "y_offset": 112,
+      "stomp_kills_enemy": true,
+      "touch_kills_player": true,
+      "bounce_on_stomp": true
     },
     {
       "world_x": 2461,
@@ -85,7 +94,10 @@
       "speed": 2,
       "width": 40,
       "height": 40,
-      "use_gravity": true
+      "use_gravity": true,
+      "stomp_kills_enemy": true,
+      "touch_kills_player": true,
+      "bounce_on_stomp": true
     }
   ],
   "platforms": [

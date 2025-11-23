@@ -141,7 +141,8 @@ class RemoteAPI:
             "id": enemy_id,
         })
 
-    def spawn_enemy(self, x, y, use_gravity=True, speed=2, scale=1.0):
+    def spawn_enemy(self, x, y, use_gravity=True, speed=2, scale=1.0, 
+                    stomp_kills_enemy=True, touch_kills_player=True, bounce_on_stomp=True):
         self.commands.append({
             "op": "spawn_enemy",
             "x": x,
@@ -149,18 +150,26 @@ class RemoteAPI:
             "use_gravity": bool(use_gravity),
             "speed": float(speed),
             "scale": float(scale),
+            "stomp_kills_enemy": bool(stomp_kills_enemy),
+            "touch_kills_player": bool(touch_kills_player),
+            "bounce_on_stomp": bool(bounce_on_stomp),
         })
 
     def show_text(self, text, duration=3.0, color=(255, 255, 255)):
+        """画面右上にテキストを表示する（display_textへのエイリアス）"""
+        self.display_text(text, duration, color)
+    
+    def display_text(self, text, duration=3.0, color=(255, 255, 255)):
         """画面右上にテキストを表示する"""
         self.commands.append({
-            "op": "show_text",
+            "op": "display_text",
             "text": str(text),
             "duration": float(duration),
             "color": list(color)
         })
 
-    def spawn_snake(self, x, y, width=60, height=20, speed=3, move_range=150, scale=1.0):
+    def spawn_snake(self, x, y, width=60, height=20, speed=3, move_range=150, scale=1.0,
+                    stomp_kills_enemy=True, touch_kills_player=True, bounce_on_stomp=True):
         """重力を受けない蛇タイプの敵を生成"""
         self.commands.append({
             "op": "spawn_snake",
@@ -171,6 +180,9 @@ class RemoteAPI:
             "speed": speed,
             "move_range": move_range,
             "scale": float(scale),
+            "stomp_kills_enemy": bool(stomp_kills_enemy),
+            "touch_kills_player": bool(touch_kills_player),
+            "bounce_on_stomp": bool(bounce_on_stomp),
         })
 
     def set_max_jumps(self, max_jumps):
@@ -232,6 +244,12 @@ class RemoteAPI:
             return self._current_state['goal']
         return None
 
+    def get_camera_pos(self):
+        # state からカメラ座標を取得（main.py で state["world"]["camera_x"] に載せている）
+        if hasattr(self, '_current_state') and 'world' in self._current_state and 'camera_x' in self._current_state['world']:
+            return {'x': self._current_state['world']['camera_x'], 'y': 0}
+        return None
+
     def set_goal_pos(self, x, y):
         self.commands.append({
             "op": "set_goal_pos",
@@ -262,7 +280,186 @@ class RemoteAPI:
                 return platforms[platform_index]
         return None
 
+    # ---- オーバーレイ描画API ----
+    def draw_circle(self, x, y, radius, color, width=0):
+        """画面上に円を描画（オーバーレイ）- x,yは世界座標（カメラ位置を自動補正）"""
+        camera = self.get_camera_pos()
+        screen_x = x
+        if camera:
+            screen_x = x - camera['x']
+        self.commands.append({
+            "op": "draw_circle",
+            "x": int(screen_x),
+            "y": int(y),
+            "radius": int(radius),
+            "color": list(color),
+            "width": int(width),
+        })
+
+    def draw_rect(self, x, y, width, height, color, line_width=0):
+        """画面上に矩形を描画（オーバーレイ）- x,yは世界座標（カメラ位置を自動補正）"""
+        camera = self.get_camera_pos()
+        screen_x = x
+        if camera:
+            screen_x = x - camera['x']
+        self.commands.append({
+            "op": "draw_rect",
+            "x": int(screen_x),
+            "y": int(y),
+            "width": int(width),
+            "height": int(height),
+            "color": list(color),
+            "line_width": int(line_width),
+        })
+
+    def draw_line(self, start_x, start_y, end_x, end_y, color, width=1):
+        """画面上に線を描画（オーバーレイ）- x座標は世界座標（カメラ位置を自動補正）"""
+        camera = self.get_camera_pos()
+        screen_start_x = start_x
+        screen_end_x = end_x
+        if camera:
+            screen_start_x = start_x - camera['x']
+            screen_end_x = end_x - camera['x']
+        self.commands.append({
+            "op": "draw_line",
+            "start_x": int(screen_start_x),
+            "start_y": int(start_y),
+            "end_x": int(screen_end_x),
+            "end_y": int(end_y),
+            "color": list(color),
+            "width": int(width),
+        })
+
+    def draw_enemy_overlay(self, enemy_id, shape="rect", color=(255, 0, 0), size=50, line_width=0):
+        """
+        指定した敵の位置にオーバーレイ図形を描画
+        
+        Parameters:
+        - enemy_id: 敵のID（"all" で全敵に適用）
+        - shape: "rect" (四角) または "circle" (円)
+        - color: RGB タプル
+        - size: 図形のサイズ（rect なら幅=高さ、circle なら半径）
+        - line_width: 0 で塗りつぶし、1以上で枠線のみ
+        """
+        self.commands.append({
+            "op": "draw_enemy_overlay",
+            "enemy_id": enemy_id,
+            "shape": shape,
+            "color": list(color),
+            "size": int(size),
+            "line_width": int(line_width),
+        })
+
+    def clear_overlay(self):
+        """オーバーレイをクリア"""
+        self.commands.append({
+            "op": "clear_overlay",
+        })
+
+    # ---- 敵との衝突判定設定 ----
+    def set_enemy_collision(self, stomp_kills_enemy=None, touch_kills_player=None, bounce_on_stomp=None):
+        """
+        敵との衝突判定を設定
+        
+        引数:
+            stomp_kills_enemy: 踏むと敵を倒すか(True/False)
+            touch_kills_player: 触れるとプレイヤーが死ぬか(True/False)
+            bounce_on_stomp: 踏んだ時にバウンスするか(True/False)
+        """
+        if stomp_kills_enemy is not None:
+            self.commands.append({
+                "op": "set_enemy_collision",
+                "key": "stomp_kills_enemy",
+                "value": bool(stomp_kills_enemy)
+            })
+        if touch_kills_player is not None:
+            self.commands.append({
+                "op": "set_enemy_collision",
+                "key": "touch_kills_player",
+                "value": bool(touch_kills_player)
+            })
+        if bounce_on_stomp is not None:
+            self.commands.append({
+                "op": "set_enemy_collision",
+                "key": "bounce_on_stomp",
+                "value": bool(bounce_on_stomp)
+            })
+
     # ---- 高レベルAPI ----
+
+    def spawn_symmetric(self, enemy_id, offset_x=60, speed=None, scale=None, use_gravity=None):
+        """指定した敵の左右に対称な位置に敵を2体生成するヘルパー
+
+        enemy_id: オリジナル敵の id
+        offset_x: 元の敵の x から左右に離す距離（世界座標）
+        speed: 生成時に上書きする速度（省略可）
+        scale: 生成時に上書きするスケール（省略可）
+        use_gravity: 生成時に上書きする重力フラグ（省略可）
+        """
+        # Runner 側では現在の state が保持されているので、ここで元の敵情報を参照する
+        if not hasattr(self, '_current_state'):
+            return
+        enemies = self._current_state.get('enemies', [])
+        base = None
+        for e in enemies:
+            if e.get('id') == enemy_id:
+                base = e
+                break
+        if base is None:
+            return
+
+        # Debug print to runner's stdout so game host can see
+        print(f"spawn_symmetric called for id={enemy_id}, base={base}")
+
+        bx = base.get('x', 0)
+        by = base.get('y', 0)
+        bwidth = base.get('width') or 40
+        bheight = base.get('height') or 40
+        bmove_range = base.get('move_range') or 100
+        bscale = base.get('scale') if base.get('scale') is not None else 1.0
+        busg = base.get('use_gravity') if base.get('use_gravity') is not None else True
+        bspeed = base.get('speed') if base.get('speed') is not None else 2.0
+
+        # 左右の world_x を決定
+        left_x = bx - offset_x
+        right_x = bx + offset_x
+
+        # 可能なら上書き
+        spawn_speed = float(speed) if speed is not None else float(bspeed)
+        spawn_scale = float(scale) if scale is not None else float(bscale)
+        spawn_use_gravity = bool(use_gravity) if use_gravity is not None else bool(busg)
+
+        # 2体生成コマンドを追加
+        # ログも送っておく（ゲーム内のテキスト表示）
+        self.commands.append({"op":"runner_log", "msg": f"spawn_symmetric: base_id={enemy_id}, left={left_x}, right={right_x}, speed={spawn_speed}, scale={spawn_scale}"})
+        # include size/move_range so main can reproduce similar enemies
+        self.commands.append({
+            "op": "spawn_enemy",
+            "x": left_x,
+            "y": by,
+            "use_gravity": spawn_use_gravity,
+            "speed": spawn_speed,
+            "scale": spawn_scale,
+            "move_range": bmove_range,
+            "width": bwidth,
+            "height": bheight,
+        })
+        # pass explicit extras as additional keys in command dict (spawn_enemy accepts extra fields)
+        self.commands.append({
+            "op": "spawn_enemy",
+            "x": right_x,
+            "y": by,
+            "use_gravity": spawn_use_gravity,
+            "speed": spawn_speed,
+            "scale": spawn_scale,
+            "move_range": bmove_range,
+            "width": bwidth,
+            "height": bheight,
+        })
+
+
+
+
     def spawn_enemy_periodically(self, state, memory, interval_ms=1000, spawn_chance=0.5, offset_x=400):
         """
         定期的にプレイヤーの先に敵を出現させる
@@ -436,7 +633,7 @@ def main():
                     # ゲーム側にスクリプト更新通知を送る
                     try:
                         log_cmd = {"type": "commands", "commands": [
-                            {"op": "show_text", "text": "✓ Updated", "duration": 5.0, "color": [0, 200, 0]},
+                            {"op": "display_text", "text": "✓ Updated", "duration": 5.0, "color": [0, 200, 0]},
                             {"op": "runner_log", "msg": "script_user.py changed - reloaded"}
                         ]}
                         f_w.write(json.dumps(log_cmd) + "\n")
@@ -449,7 +646,7 @@ def main():
                     # エラーを画面に表示（シンプルに）
                     try:
                         err_cmd = {"type": "commands", "commands": [
-                            {"op": "show_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]}
+                            {"op": "display_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]}
                         ]}
                         f_w.write(json.dumps(err_cmd) + "\n")
                         f_w.flush()
@@ -478,7 +675,7 @@ def main():
                 try:
                     err = traceback.format_exc()
                     f_w.write(json.dumps({"type": "commands", "commands": [
-                        {"op": "show_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]},
+                        {"op": "display_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]},
                         {"op": "runner_error", "msg": str(e), "trace": err}
                     ]}) + "\n")
                     f_w.flush()
@@ -498,7 +695,7 @@ def main():
             try:
                 err = traceback.format_exc()
                 f_w.write(json.dumps({"type": "commands", "commands": [
-                    {"op": "show_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]},
+                    {"op": "display_text", "text": "⚠ Error", "duration": 3.0, "color": [255, 0, 0]},
                     {"op": "runner_error", "msg": str(e), "trace": err}
                 ]}) + "\n")
                 f_w.flush()
